@@ -120,15 +120,6 @@ export default function BoardPage() {
     event.dataTransfer.setData('text/plain', encodeBouquetContent(newNote || 'Yeni not', bouquetId));
   };
 
-  const handleQuickPlace = (bouquetId: string) => {
-    if (!boardRef.current) return;
-    const rect = boardRef.current.getBoundingClientRect();
-    const noteValue = newNote || 'Yeni not';
-    const centerX = Math.max(16, Math.min(rect.width - DEFAULT_SIZE.width - 16, rect.width / 2 - DEFAULT_SIZE.width / 2));
-    const y = 16;
-    void addItemAtPosition(bouquetId, noteValue, centerX, y);
-  };
-
   return (
     <main className="mx-auto max-w-6xl space-y-4 px-4 pb-6 pt-4 sm:px-6">
       <header className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-800/80 p-4 shadow">
@@ -153,7 +144,7 @@ export default function BoardPage() {
       </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
-        <div className="order-2 space-y-4 rounded-xl bg-slate-800/80 p-4 shadow md:order-1">
+        <div className="order-1 space-y-4 rounded-xl bg-slate-800/80 p-4 shadow md:order-1">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-rose-200/70 to-slate-200/70 text-xl">
               🌸
@@ -192,19 +183,7 @@ export default function BoardPage() {
                     <p className="text-xs text-slate-400">{bouquet.description}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 text-xs text-slate-400">
-                  <span className="hidden md:inline opacity-0 transition group-hover:opacity-100">Sürükle</span>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleQuickPlace(bouquet.id);
-                    }}
-                    className="rounded-md bg-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-50 shadow hover:bg-slate-600 md:hidden"
-                  >
-                    Hızlı bırak
-                  </button>
-                </div>
+                <span className="hidden text-xs text-slate-400 opacity-0 transition group-hover:opacity-100 md:inline">Sürükle</span>
               </div>
             ))}
           </div>
@@ -218,12 +197,8 @@ export default function BoardPage() {
           ref={boardRef}
           onDrop={handleDrop}
           onDragOver={allowDrop}
-          className="relative order-1 min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 md:order-2"
+          className="relative order-2 min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 md:order-2"
         >
-          <div className="pointer-events-none absolute left-0 top-0 flex w-full flex-wrap items-center gap-2 bg-slate-900/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-300 backdrop-blur md:hidden">
-            <span>Dokun &amp; Bırak</span>
-            <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-200">Mobil için hızlı bırak aktif</span>
-          </div>
           {items.map((item) => (
             <ItemCard key={item.id} item={item} onChange={updateLocalItem} onDelete={handleDelete} />
           ))}

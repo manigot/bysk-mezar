@@ -15,7 +15,10 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+  const resizeOffset = useRef({ x: 0, y: 0 });
   const sizeOrigin = useRef({ width: item.width, height: item.height, x: item.x, y: item.y });
+
+  const getBoardRect = () => cardRef.current?.parentElement?.getBoundingClientRect() ?? null;
 
   useEffect(() => {
     sizeOrigin.current = { width: item.width, height: item.height, x: item.x, y: item.y };
@@ -23,17 +26,23 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
-      if (!cardRef.current) return;
+      const boardRect = getBoardRect();
+      if (!boardRect) return;
+      const pointerX = event.clientX - boardRect.left;
+      const pointerY = event.clientY - boardRect.top;
+
+      const maxX = Math.max(0, boardRect.width - item.width);
+      const maxY = Math.max(0, boardRect.height - item.height);
 
       if (isDragging) {
-        const newX = event.clientX - dragOffset.current.x;
-        const newY = event.clientY - dragOffset.current.y;
+        const newX = Math.min(Math.max(0, pointerX - dragOffset.current.x), maxX);
+        const newY = Math.min(Math.max(0, pointerY - dragOffset.current.y), maxY);
         onChange({ ...item, x: newX, y: newY });
       }
 
       if (isResizing) {
-        const width = Math.max(120, sizeOrigin.current.width + (event.clientX - sizeOrigin.current.x - dragOffset.current.x));
-        const height = Math.max(90, sizeOrigin.current.height + (event.clientY - sizeOrigin.current.y - dragOffset.current.y));
+        const width = Math.max(120, pointerX - sizeOrigin.current.x - resizeOffset.current.x);
+        const height = Math.max(90, pointerY - sizeOrigin.current.y - resizeOffset.current.y);
         onChange({ ...item, width, height });
       }
     };
@@ -55,24 +64,30 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
   }, [isDragging, isResizing, item, onChange]);
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
+    const boardRect = getBoardRect();
+    if (!boardRect) return;
+    const pointerX = event.clientX - boardRect.left;
+    const pointerY = event.clientY - boardRect.top;
     dragOffset.current = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: pointerX - item.x,
+      y: pointerY - item.y,
     };
+    cardRef.current?.setPointerCapture(event.pointerId);
     setIsDragging(true);
   };
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    dragOffset.current = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+    const boardRect = getBoardRect();
+    if (!boardRect) return;
+    const pointerX = event.clientX - boardRect.left;
+    const pointerY = event.clientY - boardRect.top;
+    resizeOffset.current = {
+      x: pointerX - (item.x + item.width),
+      y: pointerY - (item.y + item.height),
     };
     sizeOrigin.current = { width: item.width, height: item.height, x: item.x, y: item.y };
+    cardRef.current?.setPointerCapture(event.pointerId);
     setIsResizing(true);
   };
 
