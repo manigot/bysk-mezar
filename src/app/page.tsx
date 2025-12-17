@@ -8,12 +8,17 @@ import type { BoardItem } from '@/types/board';
 
 const DEFAULT_SIZE = { width: 220, height: 180 };
 
+type BoardItemView = BoardItem & {
+  isDirty: boolean;
+  isPersisted: boolean;
+  isSaving?: boolean;
+};
+
 export default function BoardPage() {
-  const [items, setItems] = useState<BoardItem[]>([]);
+  const [items, setItems] = useState<BoardItemView[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newNote, setNewNote] = useState('Sevgi ve özlemle...');
-  const pendingUpdates = useRef<Record<string, number>>({});
   const boardRef = useRef<HTMLDivElement | null>(null);
 
   const fetchItems = useCallback(async () => {
@@ -27,7 +32,14 @@ export default function BoardPage() {
     if (fetchError) {
       setError(fetchError.message);
     } else {
-      setItems(data || []);
+      setItems(
+        (data || []).map((item) => ({
+          ...item,
+          isDirty: false,
+          isPersisted: true,
+          isSaving: false,
+        })),
+      );
     }
     setLoading(false);
   }, []);
@@ -36,61 +48,41 @@ export default function BoardPage() {
     void fetchItems();
   }, [fetchItems]);
 
-  const queueUpdate = useCallback((item: BoardItem) => {
-    if (pendingUpdates.current[item.id]) {
-      window.clearTimeout(pendingUpdates.current[item.id]);
-    }
-
-    pendingUpdates.current[item.id] = window.setTimeout(async () => {
-      await supabase
-        .from('board_items')
-        .update({
-          content: item.content,
-          x: item.x,
-          y: item.y,
-          width: item.width,
-          height: item.height,
-        })
-        .eq('id', item.id);
-      delete pendingUpdates.current[item.id];
-    }, 400);
+  const updateLocalItem = useCallback((updated: BoardItemView) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === updated.id
+          ? {
+              ...updated,
+              isDirty: true,
+            }
+          : item,
+      ),
+    );
   }, []);
 
-  const updateLocalItem = useCallback(
-    (updated: BoardItem) => {
-      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      queueUpdate(updated);
-    },
-    [queueUpdate],
-  );
+  const addItemAtPosition = useCallback((bouquetId: string, noteValue: string, x: number, y: number) => {
+    const content = encodeBouquetContent(noteValue, bouquetId);
+    const localId = crypto.randomUUID ? `local-${crypto.randomUUID()}` : `local-${Date.now()}`;
+    const now = new Date().toISOString();
 
-  const addItemAtPosition = useCallback(
-    async (bouquetId: string, noteValue: string, x: number, y: number) => {
-      const content = encodeBouquetContent(noteValue, bouquetId);
+    const newItem: BoardItemView = {
+      id: localId,
+      content,
+      x,
+      y,
+      width: DEFAULT_SIZE.width,
+      height: DEFAULT_SIZE.height,
+      created_at: now,
+      updated_at: null,
+      created_by: 'local',
+      isDirty: true,
+      isPersisted: false,
+      isSaving: false,
+    };
 
-      const { data, error: insertError } = await supabase
-        .from('board_items')
-        .insert({
-          content,
-          x,
-          y,
-          width: DEFAULT_SIZE.width,
-          height: DEFAULT_SIZE.height,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        setError(insertError.message);
-        return;
-      }
-
-      if (data) {
-        setItems((prev) => [...prev, data]);
-      }
-    },
-    [],
-  );
+    setItems((prev) => [...prev, newItem]);
+  }, []);
 
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -103,13 +95,91 @@ export default function BoardPage() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    await addItemAtPosition(bouquetId, noteValue, x, y);
+    addItemAtPosition(bouquetId, noteValue, x, y);
   };
 
   const handleDelete = async (id: string) => {
+    const target = items.find((item) => item.id === id);
+    if (!target) return;
+
+    if (!target.isPersisted) {
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      return;
+    }
+
     await supabase.from('board_items').delete().eq('id', id);
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
+
+  const handleSave = useCallback(
+    async (id: string) => {
+      const target = items.find((item) => item.id === id);
+      if (!target) return;
+
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, isSaving: true } : item)));
+
+      if (target.isPersisted) {
+        const { data, error: updateError } = await supabase
+          .from('board_items')
+          .update({
+            content: target.content,
+            x: target.x,
+            y: target.y,
+            width: target.width,
+            height: target.height,
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) {
+          setError(updateError.message);
+          setItems((prev) => prev.map((item) => (item.id === id ? { ...item, isSaving: false } : item)));
+          return;
+        }
+
+        if (data) {
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? { ...data, isDirty: false, isPersisted: true, isSaving: false }
+                : item,
+            ),
+          );
+        }
+        return;
+      }
+
+      const { data, error: insertError } = await supabase
+        .from('board_items')
+        .insert({
+          content: target.content,
+          x: target.x,
+          y: target.y,
+          width: target.width,
+          height: target.height,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        setError(insertError.message);
+        setItems((prev) => prev.map((item) => (item.id === id ? { ...item, isSaving: false } : item)));
+        return;
+      }
+
+      if (data) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? { ...data, isDirty: false, isPersisted: true, isSaving: false }
+              : item,
+          ),
+        );
+      }
+    },
+    [items],
+  );
 
   const allowDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -197,10 +267,17 @@ export default function BoardPage() {
           ref={boardRef}
           onDrop={handleDrop}
           onDragOver={allowDrop}
-          className="relative order-2 min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 md:order-2"
+          className="relative order-2 min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-[url('/board-bg.svg')] bg-cover bg-center"
         >
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-slate-900/35 to-slate-950/80" />
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} onChange={updateLocalItem} onDelete={handleDelete} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              onChange={updateLocalItem}
+              onDelete={handleDelete}
+              onSave={handleSave}
+            />
           ))}
           {items.length === 0 && !loading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">

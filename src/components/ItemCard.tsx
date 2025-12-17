@@ -5,12 +5,17 @@ import { getBouquet, parseBouquetContent } from '@/lib/bouquets';
 import type { BoardItem } from '@/types/board';
 
 export type ItemCardProps = {
-  item: BoardItem;
-  onChange: (item: BoardItem) => void;
+  item: BoardItem & {
+    isDirty: boolean;
+    isPersisted: boolean;
+    isSaving?: boolean;
+  };
+  onChange: (item: BoardItem & { isDirty: boolean; isPersisted: boolean; isSaving?: boolean }) => void;
   onDelete?: (id: string) => void;
+  onSave?: (id: string) => void;
 };
 
-export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
+export function ItemCard({ item, onChange, onDelete, onSave }: ItemCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -115,6 +120,10 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
           <span>{bouquet.emoji}</span>
           <span>{bouquet.title}</span>
         </span>
+        <div className="flex items-center gap-2 text-[11px] font-medium">
+          {item.isDirty ? <span className="rounded-full bg-amber-500/80 px-2 py-0.5 text-slate-900">Kaydet</span> : null}
+          {item.isSaving ? <span className="text-slate-300">Kaydediliyor...</span> : null}
+        </div>
         {onDelete ? (
           <button
             type="button"
@@ -139,9 +148,23 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
         </div>
         <div
           onPointerDown={startResize}
-          className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded bg-slate-100/70"
+          className="absolute bottom-2 right-10 h-4 w-4 cursor-se-resize rounded bg-slate-100/70"
           aria-label="Resize handle"
         />
+        {onSave ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSave(item.id);
+            }}
+            disabled={item.isSaving}
+            className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-200/90 text-xs font-bold text-emerald-800 shadow-md transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Kaydet"
+          >
+            ✓
+          </button>
+        ) : null}
       </div>
     </div>
   );
