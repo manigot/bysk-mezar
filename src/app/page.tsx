@@ -64,6 +64,34 @@ export default function BoardPage() {
     [queueUpdate],
   );
 
+  const addItemAtPosition = useCallback(
+    async (bouquetId: string, noteValue: string, x: number, y: number) => {
+      const content = encodeBouquetContent(noteValue, bouquetId);
+
+      const { data, error: insertError } = await supabase
+        .from('board_items')
+        .insert({
+          content,
+          x,
+          y,
+          width: DEFAULT_SIZE.width,
+          height: DEFAULT_SIZE.height,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
+
+      if (data) {
+        setItems((prev) => [...prev, data]);
+      }
+    },
+    [],
+  );
+
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (!boardRef.current) return;
@@ -71,30 +99,11 @@ export default function BoardPage() {
     const rawData = event.dataTransfer.getData('text/plain');
     const parsed = parseBouquetContent(rawData || '');
     const bouquetId = parsed.bouquetId || DEFAULT_BOUQUET_ID;
-    const content = encodeBouquetContent(parsed.note || newNote || 'Yeni not', bouquetId);
+    const noteValue = parsed.note || newNote || 'Yeni not';
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const { data, error: insertError } = await supabase
-      .from('board_items')
-      .insert({
-        content,
-        x,
-        y,
-        width: DEFAULT_SIZE.width,
-        height: DEFAULT_SIZE.height,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
-
-    if (data) {
-      setItems((prev) => [...prev, data]);
-    }
+    await addItemAtPosition(bouquetId, noteValue, x, y);
   };
 
   const handleDelete = async (id: string) => {
@@ -111,8 +120,17 @@ export default function BoardPage() {
     event.dataTransfer.setData('text/plain', encodeBouquetContent(newNote || 'Yeni not', bouquetId));
   };
 
+  const handleQuickPlace = (bouquetId: string) => {
+    if (!boardRef.current) return;
+    const rect = boardRef.current.getBoundingClientRect();
+    const noteValue = newNote || 'Yeni not';
+    const centerX = Math.max(16, Math.min(rect.width - DEFAULT_SIZE.width - 16, rect.width / 2 - DEFAULT_SIZE.width / 2));
+    const y = 16;
+    void addItemAtPosition(bouquetId, noteValue, centerX, y);
+  };
+
   return (
-    <main className="mx-auto max-w-6xl space-y-4 p-6">
+    <main className="mx-auto max-w-6xl space-y-4 px-4 pb-6 pt-4 sm:px-6">
       <header className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-800/80 p-4 shadow">
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-lg bg-indigo-500/80" />
@@ -134,8 +152,8 @@ export default function BoardPage() {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
-        <div className="space-y-4 rounded-xl bg-slate-800/80 p-4 shadow">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
+        <div className="order-2 space-y-4 rounded-xl bg-slate-800/80 p-4 shadow md:order-1">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-rose-200/70 to-slate-200/70 text-xl">
               🌸
@@ -174,7 +192,19 @@ export default function BoardPage() {
                     <p className="text-xs text-slate-400">{bouquet.description}</p>
                   </div>
                 </div>
-                <span className="text-xs text-slate-400 opacity-0 transition group-hover:opacity-100">Sürükle</span>
+                <div className="flex flex-col items-end gap-1 text-xs text-slate-400">
+                  <span className="hidden md:inline opacity-0 transition group-hover:opacity-100">Sürükle</span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleQuickPlace(bouquet.id);
+                    }}
+                    className="rounded-md bg-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-50 shadow hover:bg-slate-600 md:hidden"
+                  >
+                    Hızlı bırak
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -188,8 +218,12 @@ export default function BoardPage() {
           ref={boardRef}
           onDrop={handleDrop}
           onDragOver={allowDrop}
-          className="relative min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+          className="relative order-1 min-h-[70vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 md:order-2"
         >
+          <div className="pointer-events-none absolute left-0 top-0 flex w-full flex-wrap items-center gap-2 bg-slate-900/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-300 backdrop-blur md:hidden">
+            <span>Dokun &amp; Bırak</span>
+            <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-200">Mobil için hızlı bırak aktif</span>
+          </div>
           {items.map((item) => (
             <ItemCard key={item.id} item={item} onChange={updateLocalItem} onDelete={handleDelete} />
           ))}
