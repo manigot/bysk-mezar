@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getBouquet, parseBouquetContent } from '@/lib/bouquets';
 import type { BoardItem } from '@/types/board';
 
 export type ItemCardProps = {
@@ -75,41 +76,55 @@ export function ItemCard({ item, onChange, onDelete }: ItemCardProps) {
     setIsResizing(true);
   };
 
-  const handleContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onChange({ ...item, content: event.target.value });
-  };
+  const { note, bouquetId } = parseBouquetContent(item.content);
+  const bouquet = getBouquet(bouquetId);
 
   return (
     <div
       ref={cardRef}
-      className="absolute rounded-xl border border-slate-600 bg-slate-800 shadow-lg"
-      style={{ left: item.x, top: item.y, width: item.width, height: item.height }}
+      className="group absolute overflow-hidden rounded-xl border shadow-xl"
+      style={{
+        left: item.x,
+        top: item.y,
+        width: item.width,
+        height: item.height,
+        background: `linear-gradient(135deg, ${bouquet.gradient})`,
+        borderColor: bouquet.accent,
+      }}
     >
       <div
         onPointerDown={startDrag}
-        className="flex cursor-grab items-center justify-between rounded-t-xl bg-slate-700 px-3 py-2 text-sm font-semibold"
+        className="flex cursor-grab items-center justify-between bg-slate-900/60 px-3 py-2 text-sm font-semibold text-slate-100"
       >
-        <span>Item</span>
+        <span className="flex items-center gap-2">
+          <span>{bouquet.emoji}</span>
+          <span>{bouquet.title}</span>
+        </span>
         {onDelete ? (
           <button
             type="button"
             onClick={() => onDelete(item.id)}
-            className="text-xs text-rose-300 hover:text-rose-200"
+            className="text-xs text-rose-200 hover:text-rose-50"
             aria-label="Delete item"
           >
             ✕
           </button>
         ) : null}
       </div>
-      <div className="relative h-full px-3 pb-3 pt-2">
-        <textarea
-          value={item.content}
-          onChange={handleContentChange}
-          className="h-full w-full resize-none rounded-lg bg-slate-900/70 p-2 text-sm text-slate-50 outline-none"
-        />
+      <div className="relative flex h-full flex-col items-center justify-center gap-3 px-3 pb-5 pt-4">
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-full text-2xl shadow-lg"
+          style={{ background: `linear-gradient(135deg, ${bouquet.gradient})`, color: bouquet.accent }}
+        >
+          {bouquet.emoji}
+        </div>
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-slate-50/90">Buket</p>
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 max-h-36 overflow-hidden rounded-lg bg-slate-950/80 p-3 text-sm leading-relaxed text-slate-100 opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
+          <p className="whitespace-pre-line">{note || 'Not eklenmedi'}</p>
+        </div>
         <div
           onPointerDown={startResize}
-          className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded bg-slate-500/60"
+          className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded bg-slate-100/70"
           aria-label="Resize handle"
         />
       </div>

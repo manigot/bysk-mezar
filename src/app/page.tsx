@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { ItemCard } from '@/components/ItemCard';
+import { BOUQUETS, DEFAULT_BOUQUET_ID, encodeBouquetContent, parseBouquetContent } from '@/lib/bouquets';
 import type { BoardItem } from '@/types/board';
 
-const DEFAULT_SIZE = { width: 220, height: 140 };
+const DEFAULT_SIZE = { width: 220, height: 180 };
 
 export default function BoardPage() {
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newContent, setNewContent] = useState('My sticky note');
+  const [newNote, setNewNote] = useState('Sevgi ve özlemle...');
   const pendingUpdates = useRef<Record<string, number>>({});
   const boardRef = useRef<HTMLDivElement | null>(null);
 
@@ -67,7 +68,10 @@ export default function BoardPage() {
     event.preventDefault();
     if (!boardRef.current) return;
     const rect = boardRef.current.getBoundingClientRect();
-    const content = event.dataTransfer.getData('text/plain') || 'New item';
+    const rawData = event.dataTransfer.getData('text/plain');
+    const parsed = parseBouquetContent(rawData || '');
+    const bouquetId = parsed.bouquetId || DEFAULT_BOUQUET_ID;
+    const content = encodeBouquetContent(parsed.note || newNote || 'Yeni not', bouquetId);
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
@@ -102,9 +106,9 @@ export default function BoardPage() {
     event.preventDefault();
   };
 
-  const handleTemplateDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleTemplateDragStart = (event: React.DragEvent<HTMLDivElement>, bouquetId: string) => {
     event.dataTransfer.effectAllowed = 'copy';
-    event.dataTransfer.setData('text/plain', newContent || 'New item');
+    event.dataTransfer.setData('text/plain', encodeBouquetContent(newNote || 'Yeni not', bouquetId));
   };
 
   return (
@@ -131,28 +135,52 @@ export default function BoardPage() {
       </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
-        <div className="space-y-3 rounded-xl bg-slate-800/80 p-4 shadow">
-          <h2 className="text-lg font-semibold">Palette</h2>
-          <label className="block text-sm text-slate-300">
-            Item text
-            <input
-              value={newContent}
-              onChange={(event) => setNewContent(event.target.value)}
-              className="mt-1 w-full rounded-lg bg-slate-900/60 px-3 py-2 text-sm outline-none"
-              placeholder="Drop text for new items"
+        <div className="space-y-4 rounded-xl bg-slate-800/80 p-4 shadow">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-rose-200/70 to-slate-200/70 text-xl">
+              🌸
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Çiçek Paleti</h2>
+              <p className="text-xs text-slate-300">Notunu yaz, buketi sürükle ve mezara bırak.</p>
+            </div>
+          </div>
+
+          <label className="block space-y-1 text-sm text-slate-200">
+            <span>Kısa not</span>
+            <textarea
+              value={newNote}
+              onChange={(event) => setNewNote(event.target.value)}
+              className="min-h-[72px] w-full rounded-lg bg-slate-900/60 px-3 py-2 text-sm outline-none"
+              placeholder="Notunuzu yazın"
             />
           </label>
-          <div
-            draggable
-            onDragStart={handleTemplateDragStart}
-            className="flex cursor-grab items-center justify-between rounded-lg border border-dashed border-slate-500/70 bg-slate-900/60 px-3 py-3 text-sm"
-          >
-            <span>Drag & drop to create</span>
-            <span className="text-xs text-slate-400">+ item</span>
+
+          <div className="grid grid-cols-1 gap-2">
+            {BOUQUETS.map((bouquet) => (
+              <div
+                key={bouquet.id}
+                draggable
+                onDragStart={(event) => handleTemplateDragStart(event, bouquet.id)}
+                className="group flex cursor-grab items-center justify-between rounded-lg border border-slate-600/70 bg-slate-900/70 px-3 py-3 transition hover:border-slate-400"
+                style={{ boxShadow: `0 8px 18px rgba(0,0,0,0.2)` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-lg" style={{ background: `linear-gradient(135deg, ${bouquet.gradient})`, color: bouquet.accent }}>
+                    {bouquet.emoji}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-50">{bouquet.title}</p>
+                    <p className="text-xs text-slate-400">{bouquet.description}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400 opacity-0 transition group-hover:opacity-100">Sürükle</span>
+              </div>
+            ))}
           </div>
-          <p className="text-xs text-slate-400">
-            You can also drop any plain text into the board. Items are stored with your auth user as
-            <code className="ml-1 rounded bg-slate-900 px-1">created_by</code>.
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            Buketler sürükleyip bıraktıktan sonra notlar çiçeklerin üzerine gelince görünür. Dilersen dışarıdan düz yazı da
+            bırakabilirsin.
           </p>
         </div>
 
