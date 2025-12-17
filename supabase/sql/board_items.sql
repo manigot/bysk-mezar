@@ -12,31 +12,86 @@ create table if not exists public.board_items (
 );
 
 -- Always store the owner on insert.
-create policy if not exists "board_items insert is owner" on public.board_items
-for insert to authenticated
-with check (auth.uid() = created_by);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'board_items'
+      and policyname = 'board_items insert is owner'
+  ) then
+    create policy "board_items insert is owner" on public.board_items
+    for insert to authenticated
+    with check (auth.uid() = created_by);
+  end if;
+end;
+$$;
 
 -- Everyone logged in can read items.
-create policy if not exists "board_items read all" on public.board_items
-for select to authenticated
-using (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'board_items'
+      and policyname = 'board_items read all'
+  ) then
+    create policy "board_items read all" on public.board_items
+    for select to authenticated
+    using (true);
+  end if;
+end;
+$$;
 
 -- Only the owner can update/delete.
-create policy if not exists "board_items owner can update" on public.board_items
-for update to authenticated
-using (auth.uid() = created_by)
-with check (auth.uid() = created_by);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'board_items'
+      and policyname = 'board_items owner can update'
+  ) then
+    create policy "board_items owner can update" on public.board_items
+    for update to authenticated
+    using (auth.uid() = created_by)
+    with check (auth.uid() = created_by);
+  end if;
+end;
+$$;
 
-create policy if not exists "board_items owner can delete" on public.board_items
-for delete to authenticated
-using (auth.uid() = created_by);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'board_items'
+      and policyname = 'board_items owner can delete'
+  ) then
+    create policy "board_items owner can delete" on public.board_items
+    for delete to authenticated
+    using (auth.uid() = created_by);
+  end if;
+end;
+$$;
 
 -- Optional: allow collaborative edits by anyone authenticated.
 -- Uncomment if you want every logged-in user to move/resize any item.
--- create policy "board_items collaborative update" on public.board_items
--- for update to authenticated
--- using (true)
--- with check (true);
+-- do $$
+-- begin
+--   if not exists (
+--     select 1 from pg_policies
+--     where schemaname = 'public'
+--       and tablename = 'board_items'
+--       and policyname = 'board_items collaborative update'
+--   ) then
+--     create policy "board_items collaborative update" on public.board_items
+--     for update to authenticated
+--     using (true)
+--     with check (true);
+--   end if;
+-- end;
+-- $$;
 
 -- Keep updated_at fresh.
 create or replace function public.set_board_item_updated_at()
